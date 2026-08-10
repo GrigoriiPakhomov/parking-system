@@ -17,8 +17,7 @@ import parking.model.vehicle.VehicleType;
 @RequiredArgsConstructor
 public class ParkingService {
 
-    private static final Logger log =
-            LoggerFactory.getLogger(ParkingService.class);
+    private static final Logger log = LoggerFactory.getLogger(ParkingService.class);
 
     private final Parking parking;
 
@@ -33,13 +32,10 @@ public class ParkingService {
      */
     public void parkVehicle(Vehicle vehicle) throws InterruptedException {
         synchronized (parking) {
-
             if (!parking.getWaitingQueue().isEmpty()) {
                 parking.getWaitingQueue().add(vehicle);
 
-                log.info("[{}] встал в очередь. Позиция: {}",
-                        vehicle.getId(),
-                        parking.getWaitingQueue().size());
+                log.info("[{}] встал в очередь. Позиция: {}", vehicle.getId(), parking.getWaitingQueue().size());
 
                 waitForParking(vehicle);
                 return;
@@ -52,9 +48,7 @@ public class ParkingService {
 
             parking.getWaitingQueue().add(vehicle);
 
-            log.info("[{}] встал в очередь. Позиция: {}",
-                    vehicle.getId(),
-                    parking.getWaitingQueue().size());
+            log.info("[{}] встал в очередь. Позиция: {}", vehicle.getId(), parking.getWaitingQueue().size());
 
             waitForParking(vehicle);
         }
@@ -70,8 +64,7 @@ public class ParkingService {
         while (true) {
             parking.wait();
 
-            if (parking.getWaitingQueue().peek()==vehicle
-                    && tryPark(vehicle)) {
+            if (parking.getWaitingQueue().peek()==vehicle && tryPark(vehicle)) {
 
                 parking.getWaitingQueue().poll();
 
@@ -92,7 +85,6 @@ public class ParkingService {
         if (vehicle.getVehicleType()==VehicleType.PASSENGER) {
             return parkPassengerCar(vehicle);
         }
-
         return parkTruck(vehicle);
     }
 
@@ -103,9 +95,7 @@ public class ParkingService {
      * @return true, если автомобиль припаркован
      */
     private boolean parkPassengerCar(Vehicle vehicle) {
-
-        for (PassengerParkingSpot spot :
-                parking.getPassengerSpots()) {
+        for (PassengerParkingSpot spot : parking.getPassengerSpots()) {
 
             if (spot.isFree()) {
                 spot.setCurrentVehicle(vehicle);
@@ -114,12 +104,8 @@ public class ParkingService {
             }
         }
 
-        for (TruckParkingSpot spot :
-                parking.getTruckSpots()) {
-
-            if (spot.getPassengerCount() < 2
-                    && !spot.hasTruck()) {
-
+        for (TruckParkingSpot spot : parking.getTruckSpots()) {
+            if (spot.getPassengerCount() < 2 && !spot.hasTruck()) {
                 spot.addPassenger(vehicle);
                 vehicle.setParkingSpot(spot);
                 return true;
@@ -137,9 +123,7 @@ public class ParkingService {
      */
     private boolean parkTruck(Vehicle vehicle) {
 
-        for (TruckParkingSpot spot :
-                parking.getTruckSpots()) {
-
+        for (TruckParkingSpot spot : parking.getTruckSpots()) {
             if (spot.isFree()) {
                 spot.setCurrentVehicle(vehicle);
                 vehicle.setParkingSpot(spot);
@@ -158,13 +142,10 @@ public class ParkingService {
      */
     public void leaveParking(Vehicle vehicle) {
         synchronized (parking) {
-
             ParkingSpot spot = vehicle.getParkingSpot();
 
             if (spot==null) {
-                log.warn("[{}] пытается покинуть парковку, "
-                                + "но автомобиль не припаркован.",
-                        vehicle.getId());
+                log.warn("[{}] пытается покинуть парковку, " + "но автомобиль не припаркован.", vehicle.getId());
                 return;
             }
 
@@ -184,9 +165,7 @@ public class ParkingService {
 
             vehicle.getLoyaltyAccount().upDiscount();
 
-            log.info("[{}] уехал. Текущая скидка: {}%",
-                    vehicle.getId(),
-                    vehicle.getLoyaltyAccount().getCurrentDiscount());
+            log.info("[{}] уехал. Текущая скидка: {}%", vehicle.getId(), vehicle.getLoyaltyAccount().getCurrentDiscount());
 
             parking.notifyAll();
         }
@@ -201,20 +180,14 @@ public class ParkingService {
         ParkingSpot spot = vehicle.getParkingSpot();
 
         if (spot instanceof PassengerParkingSpot) {
-            log.info("[{}] занял легковое место {}.",
-                    vehicle.getId(),
-                    spot.getId());
+            log.info("[{}] занял легковое место {}.", vehicle.getId(), spot.getId());
 
         } else if (spot instanceof TruckParkingSpot truckSpot) {
 
             if (vehicle.getVehicleType()==VehicleType.TRUCK) {
-                log.info("[{}] занял грузовое место {}.",
-                        vehicle.getId(),
-                        spot.getId());
+                log.info("[{}] занял грузовое место {}.", vehicle.getId(), spot.getId());
             } else {
-                log.info("[{}] занял грузовое место ({}/2).",
-                        vehicle.getId(),
-                        truckSpot.getPassengerCount());
+                log.info("[{}] занял грузовое место ({}/2).", vehicle.getId(), truckSpot.getPassengerCount());
             }
         }
     }

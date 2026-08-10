@@ -16,28 +16,20 @@ import java.util.concurrent.ThreadLocalRandom;
  */
 @RequiredArgsConstructor
 public class VehicleTask implements Runnable {
-
-    private static final Logger log =
-            LoggerFactory.getLogger(VehicleTask.class);
-
+    private static final Logger log = LoggerFactory.getLogger(VehicleTask.class);
     private final Vehicle vehicle;
     private final ParkingService parkingService;
 
     @Override
     public void run() {
-        try {
-            log.info("[{}] приехал.", vehicle.getId());
-
+        try {log.info("[{}] приехал.", vehicle.getId());
             parkingService.parkVehicle(vehicle);
-
             Thread.sleep(generateStayTime());
-
             parkingService.leaveParking(vehicle);
 
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
-            log.warn("[{}] поток автомобиля был прерван.",
-                    vehicle.getId(), e);
+            log.warn("[{}] поток автомобиля был прерван.", vehicle.getId(), e);
         }
     }
 
@@ -50,7 +42,6 @@ public class VehicleTask implements Runnable {
         if (vehicle.getVehicleType()==VehicleType.PASSENGER) {
             return ThreadLocalRandom.current().nextLong(1_000, 3_001);
         }
-
         return ThreadLocalRandom.current().nextLong(2_000, 5_001);
     }
 }

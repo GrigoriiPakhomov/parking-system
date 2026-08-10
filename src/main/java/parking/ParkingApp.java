@@ -1,11 +1,13 @@
 package parking;
 
+import parking.model.parking.ParkingSimulation;
+
 /**
  * Точка входа в приложение.
  */
 public class ParkingApp {
 
     public static void main(String[] args) throws InterruptedException {
-        new parking.ParkingSimulation().run();
+        new ParkingSimulation().run();
     }
 }

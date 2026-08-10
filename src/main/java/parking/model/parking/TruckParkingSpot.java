@@ -30,17 +30,12 @@ public class TruckParkingSpot extends ParkingSpot {
     @Override
     public void setCurrentVehicle(Vehicle vehicle) {
         if (vehicle != null && vehicle.getVehicleType() != VehicleType.TRUCK) {
-            throw new IllegalArgumentException(
-                    "Грузовое парковочное место предназначено только для грузового автомобиля."
-            );
+            throw new IllegalArgumentException("Грузовое парковочное место предназначено только для грузового автомобиля.");
         }
 
         if (vehicle != null && !passengers.isEmpty()) {
-            throw new IllegalStateException(
-                    "Нельзя разместить грузовик: место занято легковыми автомобилями."
-            );
+            throw new IllegalStateException("Нельзя разместить грузовик: место занято легковыми автомобилями.");
         }
-
         super.setCurrentVehicle(vehicle);
     }
 
@@ -54,23 +49,16 @@ public class TruckParkingSpot extends ParkingSpot {
      */
     public void addPassenger(Vehicle vehicle) {
         if (vehicle.getVehicleType() != VehicleType.PASSENGER) {
-            throw new IllegalArgumentException(
-                    "На грузовое парковочное место можно добавить только легковой автомобиль."
-            );
+            throw new IllegalArgumentException("На грузовое парковочное место можно добавить только легковой автомобиль.");
         }
 
         if (hasTruck()) {
-            throw new IllegalStateException(
-                    "Нельзя разместить автомобиль: место занято грузовиком."
-            );
+            throw new IllegalStateException("Нельзя разместить автомобиль: место занято грузовиком.");
         }
 
         if (passengers.size() >= 2) {
-            throw new IllegalStateException(
-                    "Нельзя разместить автомобиль: грузовое парковочное место заполнено."
-            );
+            throw new IllegalStateException("Нельзя разместить автомобиль: грузовое парковочное место заполнено.");
         }
-
         passengers.add(vehicle);
     }
 
@@ -110,6 +98,4 @@ public class TruckParkingSpot extends ParkingSpot {
     public boolean isFree() {
         return getCurrentVehicle() == null && passengers.isEmpty();
     }
-
-
 }
