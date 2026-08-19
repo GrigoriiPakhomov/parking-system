@@ -20,13 +20,19 @@ public class VehicleTask implements Runnable {
     private final Vehicle vehicle;
     private final ParkingService parkingService;
 
+    private static final long PASSEGER_MIN_STAY_MS = 1_000L;
+    private static final long PASSEGER_MAX_STAY_MS = 3_000L;
+    private static final long TRUCK_MIN_STAY_MS = 2_000L;
+    private static final long TRUCK_MAX_STAY_MS = 5_000L;
+
     @Override
     public void run() {
-        try {log.info("[{}] приехал.", vehicle.getId());
+        try {
+            log.info("[{}] приехал.", vehicle.getId());
+
             parkingService.parkVehicle(vehicle);
             Thread.sleep(generateStayTime());
             parkingService.leaveParking(vehicle);
-
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
             log.warn("[{}] поток автомобиля был прерван.", vehicle.getId(), e);
@@ -40,8 +46,8 @@ public class VehicleTask implements Runnable {
      */
     private long generateStayTime() {
         if (vehicle.getVehicleType()==VehicleType.PASSENGER) {
-            return ThreadLocalRandom.current().nextLong(1_000, 3_001);
+            return ThreadLocalRandom.current().nextLong(PASSEGER_MIN_STAY_MS, PASSEGER_MAX_STAY_MS + 1);
         }
-        return ThreadLocalRandom.current().nextLong(2_000, 5_001);
+        return ThreadLocalRandom.current().nextLong(TRUCK_MIN_STAY_MS, TRUCK_MAX_STAY_MS + 1);
     }
 }
