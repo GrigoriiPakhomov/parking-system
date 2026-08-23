@@ -14,9 +14,8 @@ import static parking.model.parking.ParkingSpotType.TRUCK;
  * либо до двух легковых автомобилей.
  */
 public class TruckParkingSpot extends ParkingSpot {
-
+    private static final int MAX_PASSENGERS = 2;
     private final List<Vehicle> passengers = new ArrayList<>();
-
     public TruckParkingSpot(String id) {
         super(id, TRUCK);
     }
@@ -26,16 +25,23 @@ public class TruckParkingSpot extends ParkingSpot {
      *
      * @param vehicle грузовой автомобиль
      * @throws IllegalArgumentException если передан не грузовой автомобиль
+     * @throws IllegalStateException если место занято
      */
     @Override
     public void setCurrentVehicle(Vehicle vehicle) {
-        if (vehicle != null && vehicle.getVehicleType() != VehicleType.TRUCK) {
+        if (vehicle == null) {
+            super.setCurrentVehicle(null);
+            return;
+        }
+
+        if (vehicle.getVehicleType() != VehicleType.TRUCK) {
             throw new IllegalArgumentException("Грузовое парковочное место предназначено только для грузового автомобиля.");
         }
 
-        if (vehicle != null && !passengers.isEmpty()) {
-            throw new IllegalStateException("Нельзя разместить грузовик: место занято легковыми автомобилями.");
+        if (!isFree()) {
+            throw new IllegalStateException("Нельзя разместить грузовик: парковочное место занято.");
         }
+
         super.setCurrentVehicle(vehicle);
     }
 
@@ -56,9 +62,10 @@ public class TruckParkingSpot extends ParkingSpot {
             throw new IllegalStateException("Нельзя разместить автомобиль: место занято грузовиком.");
         }
 
-        if (passengers.size() >= 2) {
+        if (!canAcceptPassenger()) {
             throw new IllegalStateException("Нельзя разместить автомобиль: грузовое парковочное место заполнено.");
         }
+
         passengers.add(vehicle);
     }
 
@@ -69,6 +76,15 @@ public class TruckParkingSpot extends ParkingSpot {
      */
     public void removePassenger(Vehicle vehicle) {
         passengers.remove(vehicle);
+    }
+
+    /**
+     * Проверяет, можно ли разместить ещё один легковой автомобиль.
+     *
+     * @return true, если место может принять легковой автомобиль
+     */
+    public boolean canAcceptPassenger() {
+        return !hasTruck() && passengers.size() < MAX_PASSENGERS;
     }
 
     /**

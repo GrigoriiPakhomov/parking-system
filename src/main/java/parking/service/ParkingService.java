@@ -10,82 +10,69 @@ import parking.model.parking.TruckParkingSpot;
 import parking.model.vehicle.Vehicle;
 import parking.model.vehicle.VehicleType;
 
+import java.util.HashMap;
+import java.util.Map;
+import java.util.concurrent.CompletableFuture;
+
 /**
  * Управляет парковкой автомобилей и обеспечивает потокобезопасный
  * доступ к парковочным местам и очереди ожидания.
  */
 @RequiredArgsConstructor
 public class ParkingService {
-
     private static final Logger log = LoggerFactory.getLogger(ParkingService.class);
-
     private final Parking parking;
+    private final Map<Vehicle, CompletableFuture<Void>> waitingSignals = new HashMap<>();
 
     /**
-     * Паркует автомобиль.
+     * Запрашивает парковочное место для автомобиля.
      *
-     * <p>Если свободного подходящего места нет, автомобиль
-     * добавляется в FIFO-очередь и ожидает освобождения места.</p>
+     * <p>Если подходящее место уже существует, автомобиль паркуется
+     * немедленно, а возвращаемый Future уже завершён.</p>
+     *
+     * <p>Если места нет, автомобиль добавляется в FIFO-очередь,
+     * а Future будет завершён после освобождения подходящего места.</p>
      *
      * @param vehicle автомобиль
-     * @throws InterruptedException если поток был прерван во время ожидания
+     * @return сигнал, который сообщает автомобилю о возможности продолжить
+     * @throws IllegalStateException если очередь ожидания заполнена
      */
-    public void parkVehicle(Vehicle vehicle) throws InterruptedException {
+    public CompletableFuture<Void> parkVehicle(Vehicle vehicle) {
         synchronized (parking) {
-            if (!parking.getWaitingQueue().isEmpty()) {
-                parking.getWaitingQueue().add(vehicle);
-
-                log.info("[{}] встал в очередь. Позиция: {}", vehicle.getId(), parking.getWaitingQueue().size());
-
-                waitForParking(vehicle);
-                return;
-            }
-
-            if (tryPark(vehicle)) {
+            if (parking.isWaitingQueueEmpty() && tryPark(vehicle)) {
                 logParking(vehicle);
-                return;
+                return CompletableFuture.completedFuture(null);
             }
 
-            parking.getWaitingQueue().add(vehicle);
+            CompletableFuture<Void> parkingSignal = new CompletableFuture<>();
 
-            log.info("[{}] встал в очередь. Позиция: {}", vehicle.getId(), parking.getWaitingQueue().size());
+            if (!parking.addToWaitingQueue(vehicle)) {
+                throw new IllegalStateException("Очередь ожидания парковки переполнена.");
+            }
 
-            waitForParking(vehicle);
+            waitingSignals.put(vehicle, parkingSignal);
+
+            log.info(
+                    "[{}] встал в очередь. Позиция: {}",
+                    vehicle.getId(),
+                    parking.getWaitingQueueSize()
+            );
+
+            return parkingSignal;
         }
     }
 
     /**
-     * Ожидает, пока автомобиль станет первым в очереди
-     * и для него появится подходящее место.
-     */
-    private void waitForParking(Vehicle vehicle)
-            throws InterruptedException {
-
-        while (true) {
-            parking.wait();
-
-            if (parking.getWaitingQueue().peek()==vehicle && tryPark(vehicle)) {
-
-                parking.getWaitingQueue().poll();
-
-                logParking(vehicle);
-
-                return;
-            }
-        }
-    }
-
-    /**
-     * Пытается найти подходящее свободное место.
+     * Пытается припарковать автомобиль.
      *
      * @param vehicle автомобиль
      * @return true, если автомобиль припаркован
      */
     private boolean tryPark(Vehicle vehicle) {
-        if (vehicle.getVehicleType()==VehicleType.PASSENGER) {
-            return parkPassengerCar(vehicle);
-        }
-        return parkTruck(vehicle);
+        return switch (vehicle.getVehicleType()) {
+            case PASSENGER -> parkPassengerCar(vehicle);
+            case TRUCK -> parkTruck(vehicle);
+        };
     }
 
     /**
@@ -95,21 +82,20 @@ public class ParkingService {
      * @return true, если автомобиль припаркован
      */
     private boolean parkPassengerCar(Vehicle vehicle) {
-        for (PassengerParkingSpot spot : parking.getPassengerSpots()) {
+        PassengerParkingSpot passengerSpot = parking.findFreePassengerSpot();
 
-            if (spot.isFree()) {
-                spot.setCurrentVehicle(vehicle);
-                vehicle.setParkingSpot(spot);
-                return true;
-            }
+        if (passengerSpot != null) {
+            passengerSpot.setCurrentVehicle(vehicle);
+            vehicle.setParkingSpot(passengerSpot);
+            return true;
         }
 
-        for (TruckParkingSpot spot : parking.getTruckSpots()) {
-            if (spot.getPassengerCount() < 2 && !spot.hasTruck()) {
-                spot.addPassenger(vehicle);
-                vehicle.setParkingSpot(spot);
-                return true;
-            }
+        TruckParkingSpot truckSpot = parking.findTruckSpotForPassenger();
+
+        if (truckSpot != null) {
+            truckSpot.addPassenger(vehicle);
+            vehicle.setParkingSpot(truckSpot);
+            return true;
         }
 
         return false;
@@ -122,21 +108,21 @@ public class ParkingService {
      * @return true, если автомобиль припаркован
      */
     private boolean parkTruck(Vehicle vehicle) {
+        TruckParkingSpot truckSpot = parking.findFreeTruckSpot();
 
-        for (TruckParkingSpot spot : parking.getTruckSpots()) {
-            if (spot.isFree()) {
-                spot.setCurrentVehicle(vehicle);
-                vehicle.setParkingSpot(spot);
-                return true;
-            }
+        if (truckSpot == null) {
+            return false;
         }
 
-        return false;
+        truckSpot.setCurrentVehicle(vehicle);
+        vehicle.setParkingSpot(truckSpot);
+
+        return true;
     }
 
     /**
      * Освобождает место после отъезда автомобиля
-     * и уведомляет ожидающие потоки.
+     * и передаёт сигнал следующему ожидающему автомобилю.
      *
      * @param vehicle автомобиль, покидающий парковку
      */
@@ -144,31 +130,62 @@ public class ParkingService {
         synchronized (parking) {
             ParkingSpot spot = vehicle.getParkingSpot();
 
-            if (spot==null) {
-                log.warn("[{}] пытается покинуть парковку, " + "но автомобиль не припаркован.", vehicle.getId());
-                return;
+            if (spot == null) {
+                throw new IllegalStateException("Автомобиль не припаркован: " + vehicle.getId());
             }
 
-            if (spot instanceof PassengerParkingSpot passengerSpot) {
-                passengerSpot.setCurrentVehicle(null);
-
-            } else if (spot instanceof TruckParkingSpot truckSpot) {
-
-                if (truckSpot.getCurrentVehicle()==vehicle) {
-                    truckSpot.setCurrentVehicle(null);
-                } else {
-                    truckSpot.removePassenger(vehicle);
+            switch (spot) {
+                case PassengerParkingSpot passengerSpot -> passengerSpot.setCurrentVehicle(null);
+                case TruckParkingSpot truckSpot -> {
+                    if (truckSpot.getCurrentVehicle() == vehicle) {
+                        truckSpot.setCurrentVehicle(null);
+                    } else {
+                        truckSpot.removePassenger(vehicle);
+                    }
                 }
+
+                default -> throw new IllegalStateException("Неизвестный тип парковочного места: " + spot.getClass().getName());
             }
 
             vehicle.setParkingSpot(null);
-
             vehicle.getLoyaltyAccount().upDiscount();
 
-            log.info("[{}] уехал. Текущая скидка: {}%", vehicle.getId(), vehicle.getLoyaltyAccount().getCurrentDiscount());
+            log.info(
+                    "[{}] уехал. Текущая скидка: {}%",
+                    vehicle.getId(),
+                    vehicle.getLoyaltyAccount().getCurrentDiscount()
+            );
 
-            parking.notifyAll();
+            signalNextVehicle();
         }
+    }
+
+    /**
+     * Проверяет очередь и пытается припарковать первый ожидающий автомобиль.
+     *
+     * <p>Если для первого автомобиля пока нет подходящего места,
+     * FIFO-очередь сохраняется.</p>
+     */
+    private void signalNextVehicle() {
+        if (parking.isWaitingQueueEmpty()) {
+            return;
+        }
+
+        Vehicle nextVehicle = parking.peekWaitingVehicle();
+
+        if (!tryPark(nextVehicle)) {
+            return;
+        }
+
+        parking.pollWaitingVehicle();
+
+        CompletableFuture<Void> signal = waitingSignals.remove(nextVehicle);
+
+        if (signal != null) {
+            signal.complete(null);
+        }
+
+        logParking(nextVehicle);
     }
 
     /**
@@ -179,16 +196,31 @@ public class ParkingService {
     private void logParking(Vehicle vehicle) {
         ParkingSpot spot = vehicle.getParkingSpot();
 
-        if (spot instanceof PassengerParkingSpot) {
-            log.info("[{}] занял легковое место {}.", vehicle.getId(), spot.getId());
+        switch (spot) {
+            case PassengerParkingSpot passengerSpot ->
+                    log.info(
+                            "[{}] занял легковое место {}.",
+                            vehicle.getId(),
+                            passengerSpot.getId()
+                    );
 
-        } else if (spot instanceof TruckParkingSpot truckSpot) {
-
-            if (vehicle.getVehicleType()==VehicleType.TRUCK) {
-                log.info("[{}] занял грузовое место {}.", vehicle.getId(), spot.getId());
-            } else {
-                log.info("[{}] занял грузовое место ({}/2).", vehicle.getId(), truckSpot.getPassengerCount());
+            case TruckParkingSpot truckSpot -> {
+                if (vehicle.getVehicleType() == VehicleType.TRUCK) {
+                    log.info(
+                            "[{}] занял грузовое место {}.",
+                            vehicle.getId(),
+                            truckSpot.getId()
+                    );
+                } else {
+                    log.info(
+                            "[{}] занял грузовое место ({}/2).",
+                            vehicle.getId(),
+                            truckSpot.getPassengerCount()
+                    );
+                }
             }
+
+            default -> throw new IllegalStateException("Неизвестный тип парковочного места: " + spot.getClass().getName());
         }
     }
 }

@@ -36,6 +36,7 @@ class TruckParkingSpotTest {
 
         assertThat(spot.getPassengerCount()).isEqualTo(2);
         assertThat(spot.hasTruck()).isFalse();
+        assertThat(spot.isFree()).isFalse();
     }
 
     @Test
@@ -49,26 +50,12 @@ class TruckParkingSpotTest {
         spot.addPassenger(car1);
         spot.addPassenger(car2);
 
-        assertThatThrownBy(() -> spot.addPassenger(car3))
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> spot.addPassenger(car3)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    @DisplayName("Грузовое место не должно позволять разместить легковую машину при наличии грузовика")
-    void testNotAllowPassengerCarWhenTruckIsParked() {
-        TruckParkingSpot spot = new TruckParkingSpot("T1");
-        Truck truck = new Truck("T1", new LoyaltyAccount());
-        PassengerCar car = new PassengerCar("P1", new LoyaltyAccount());
-
-        spot.setCurrentVehicle(truck);
-
-        assertThatThrownBy(() -> spot.addPassenger(car))
-                .isInstanceOf(IllegalStateException.class);
-    }
-
-    @Test
-    @DisplayName("Грузовое место не должно позволять разместить грузовик при наличии легковых машин")
-    void testNotAllowTruckWhenPassengerCarsAreParked() {
+    @DisplayName("Нельзя поставить грузовик на место с легковыми автомобилями")
+    void testNotAllowTruckWhenPassengersAreParked() {
         TruckParkingSpot spot = new TruckParkingSpot("T1");
         PassengerCar car1 = new PassengerCar("P1", new LoyaltyAccount());
         PassengerCar car2 = new PassengerCar("P2", new LoyaltyAccount());
@@ -77,12 +64,23 @@ class TruckParkingSpotTest {
         spot.addPassenger(car1);
         spot.addPassenger(car2);
 
-        assertThatThrownBy(() -> spot.setCurrentVehicle(truck))
-                .isInstanceOf(IllegalStateException.class);
+        assertThatThrownBy(() -> spot.setCurrentVehicle(truck)).isInstanceOf(IllegalStateException.class);
     }
 
     @Test
-    @DisplayName("Грузовое место должно стать свободным после удаления легковых машин")
+    @DisplayName("Нельзя поставить второй грузовик на занятое место")
+    void testNotAllowSecondTruck() {
+        TruckParkingSpot spot = new TruckParkingSpot("T1");
+        Truck truck1 = new Truck("T1", new LoyaltyAccount());
+        Truck truck2 = new Truck("T2", new LoyaltyAccount());
+
+        spot.setCurrentVehicle(truck1);
+
+        assertThatThrownBy(() -> spot.setCurrentVehicle(truck2)).isInstanceOf(IllegalStateException.class);
+    }
+
+    @Test
+    @DisplayName("Грузовое место должно снова стать свободным после удаления легковых автомобилей")
     void testBecomeFreeAfterRemovingPassengerCars() {
         TruckParkingSpot spot = new TruckParkingSpot("T1");
         PassengerCar car1 = new PassengerCar("P1", new LoyaltyAccount());
@@ -90,6 +88,7 @@ class TruckParkingSpotTest {
 
         spot.addPassenger(car1);
         spot.addPassenger(car2);
+
         spot.removePassenger(car1);
         spot.removePassenger(car2);
 
