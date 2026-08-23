@@ -16,7 +16,7 @@ import java.util.List;
 public class ParkingSimulation {
 
     private static final int MAX_QUEUE_SIZE = 10;
-    private static final int TOTAL_VEHICLES = 90;
+    private static final int TOTAL_VEHICLES = 20;
 
     /**
      * Запускает симуляцию парковки.
